@@ -6,6 +6,10 @@ from agent_snr.core.embedder import (
     HashNgramEmbedder,
     cosine_similarity,
 )
+from agent_snr.core.firewall import (
+    AgentSNRFirewall,
+    SNRCircuitBreakError,
+)
 from agent_snr.core.frames import (
     FirewallAction,
     FrameRole,
@@ -17,18 +21,27 @@ from agent_snr.core.telemetry import (
     TelemetryProfiler,
     profile_step,
 )
+from agent_snr.modules.budgeter import DynamicAttentionBudgeter
+from agent_snr.modules.compactor import StateCompactor
 from agent_snr.modules.entropy import LoopEntropyDetector
+from agent_snr.modules.router import SkipLevelRouter, SkipRule
 
 __version__ = "0.1.0"
 
 __all__ = [
+    "AgentSNRFirewall",
     "BaseEmbedder",
+    "DynamicAttentionBudgeter",
     "FastEmbedAdapter",
     "FirewallAction",
     "FrameRole",
     "HashNgramEmbedder",
     "LoopEntropyDetector",
+    "SNRCircuitBreakError",
     "SignalFrame",
+    "SkipLevelRouter",
+    "SkipRule",
+    "StateCompactor",
     "StepTelemetry",
     "TelemetryProfiler",
     "TraceLedger",

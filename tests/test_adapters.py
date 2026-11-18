@@ -97,6 +97,135 @@ class TestOpenAIAdapter:
         assert result == "async_response"
         mock_completions.create.assert_called_once()
 
+    def test_sync_openai_wrapper_streaming(self) -> None:
+        mock_client = MagicMock()
+        mock_completions = MagicMock()
+        mock_client.chat.completions = mock_completions
+
+        class MockStream:
+            def __init__(self, items: list[dict[str, str]]) -> None:
+                self.items = items
+                self.closed = False
+
+            def __iter__(self) -> Any:
+                return iter(self.items)
+
+            def close(self) -> None:
+                self.closed = True
+
+        raw_chunks = [{"delta": "Hello"}, {"delta": " world"}]
+        mock_completions.create.return_value = MockStream(raw_chunks)
+
+        firewall = AgentSNRFirewall(compactor=StateCompactor(max_list_items=1))
+        wrapper = SNRWrappedOpenAI(mock_client, firewall=firewall, session_id="stream_sess")
+
+        bloated_json = '{"status": "ok", "request_id": "drop-me", "items": [{"id": 1}, {"id": 2}]}'
+        messages = [
+            {"role": "user", "content": "Fetch stream"},
+            {"role": "tool_result", "content": bloated_json},
+        ]
+
+        stream = wrapper.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            stream=True,
+        )
+
+        # Verify messages compacted before stream opens
+        call_kwargs = mock_completions.create.call_args.kwargs
+        assert call_kwargs["stream"] is True
+        assert "request_id" not in call_kwargs["messages"][1]["content"]
+
+        # Verify chunks pass through cleanly
+        chunks = list(stream)
+        assert chunks == raw_chunks
+
+        # Verify context manager and close
+        stream.close()
+        assert mock_completions.create.return_value.closed is True
+
+    @pytest.mark.asyncio
+    async def test_async_openai_wrapper_streaming(self) -> None:
+        mock_client = MagicMock()
+        mock_completions = MagicMock()
+        mock_client.chat.completions = mock_completions
+
+        class MockAsyncStream:
+            def __init__(self, items: list[dict[str, str]]) -> None:
+                self.items = items
+                self.closed = False
+
+            async def __aiter__(self) -> Any:
+                for item in self.items:
+                    yield item
+
+            async def close(self) -> None:
+                self.closed = True
+
+        raw_chunks = [{"delta": "Async"}, {"delta": " stream"}]
+        mock_completions.create = AsyncMock(return_value=MockAsyncStream(raw_chunks))
+
+        firewall = AgentSNRFirewall(compactor=StateCompactor(max_list_items=1))
+        wrapper = AsyncSNRWrappedOpenAI(
+            mock_client, firewall=firewall, session_id="async_stream_sess"
+        )
+
+        bloated_json = '{"status": "ok", "request_id": "drop-me", "items": [{"id": 1}, {"id": 2}]}'
+        messages = [
+            {"role": "user", "content": "Fetch async stream"},
+            {"role": "tool_result", "content": bloated_json},
+        ]
+
+        stream = await wrapper.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            stream=True,
+        )
+
+        call_kwargs = mock_completions.create.call_args.kwargs
+        assert call_kwargs["stream"] is True
+        assert "request_id" not in call_kwargs["messages"][1]["content"]
+
+        # Verify async chunks pass through cleanly
+        chunks = []
+        async for chunk in stream:
+            chunks.append(chunk)
+        assert chunks == raw_chunks
+
+        await stream.close()
+        assert mock_completions.create.return_value.closed is True
+
+    def test_sync_streaming_circuit_break_prevents_client_call(self) -> None:
+        from agent_snr import LoopEntropyDetector
+
+        mock_client = MagicMock()
+        mock_completions = MagicMock()
+        mock_client.chat.completions = mock_completions
+
+        # Setup firewall that will circuit break on high entropy break threshold
+        detector = LoopEntropyDetector(window_size=5, entropy_break=0.99)
+        firewall = AgentSNRFirewall(loop_detector=detector)
+        wrapper = SNRWrappedOpenAI(mock_client, firewall=firewall, session_id="cb_stream_sess")
+
+        messages = [
+            {"role": "user", "content": "Task"},
+            {"role": "assistant", "content": "Step 1"},
+            {"role": "tool_call", "name": "t", "content": "Call"},
+            {"role": "assistant", "content": "Step 2"},
+            {"role": "tool_call", "name": "t", "content": "Call"},
+            {"role": "assistant", "content": "Step 3"},
+        ]
+
+        with pytest.raises(SNRCircuitBreakError):
+            wrapper.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                stream=True,
+            )
+
+        # Confirm the underlying client was never called
+        mock_completions.create.assert_not_called()
+
 
 class TestLangGraphAdapter:
     """Tests for LangGraphSNRAdapter node guards and skip routers."""

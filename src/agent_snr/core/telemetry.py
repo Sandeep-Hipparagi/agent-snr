@@ -197,6 +197,77 @@ class TelemetryProfiler:
             "cost_per_million_input": self.cost_per_million_input,
         }
 
+    def to_otel_attributes(self, step_id: int | None = None) -> dict[str, Any]:
+        """Export telemetry metrics as OpenTelemetry-compatible span attributes.
+
+        Args:
+            step_id: Optional step identifier. If provided, exports attributes for that
+                specific step. If None, exports aggregated session summary attributes.
+
+        Returns:
+            Dictionary of OpenTelemetry attribute names mapped to primitive scalar values.
+        """
+        if step_id is not None:
+            step = next((s for s in self.steps if s.step_id == step_id), None)
+            if step is None:
+                raise ValueError(f"Step with id {step_id} not found in profiler telemetry")
+            eff = (step.tokens_saved / step.raw_tokens * 100.0) if step.raw_tokens > 0 else 0.0
+            warn_count = 1 if step.action_taken == FirewallAction.INJECT_CORRECTION else 0
+            break_count = 1 if step.action_taken == FirewallAction.CIRCUIT_BREAK else 0
+            return {
+                "agent_snr.step_id": step.step_id,
+                "agent_snr.node_id": step.node_id,
+                "agent_snr.role": (
+                    step.role.value if isinstance(step.role, FrameRole) else str(step.role)
+                ),
+                "agent_snr.raw_tokens": step.raw_tokens,
+                "agent_snr.compacted_tokens": step.compacted_tokens,
+                "agent_snr.tokens_saved": step.tokens_saved,
+                "agent_snr.signal_efficiency_pct": round(eff, 2),
+                "agent_snr.mean_snr": round(step.snr_score, 4),
+                "agent_snr.entropy": round(step.entropy, 4),
+                "agent_snr.drift": round(step.drift, 4),
+                "agent_snr.action_taken": (
+                    step.action_taken.value
+                    if isinstance(step.action_taken, FirewallAction)
+                    else str(step.action_taken)
+                ),
+                "agent_snr.latency_ms": round(step.latency_ms, 2),
+                "agent_snr.loop_warnings": warn_count,
+                "agent_snr.circuit_breaks": break_count,
+            }
+
+        s = self.summary()
+        return {
+            "agent_snr.total_steps": s["total_steps"],
+            "agent_snr.total_raw_tokens": s["total_raw_tokens"],
+            "agent_snr.total_compacted_tokens": s["total_compacted_tokens"],
+            "agent_snr.tokens_saved": s["total_tokens_saved"],
+            "agent_snr.signal_efficiency_pct": s["signal_efficiency_pct"],
+            "agent_snr.mean_snr": s["mean_snr"],
+            "agent_snr.loop_warnings": s["loop_warning_count"],
+            "agent_snr.circuit_breaks": s["circuit_break_count"],
+            "agent_snr.estimated_usd_saved": s["estimated_usd_saved"],
+            "agent_snr.avg_overhead_ms": s["avg_overhead_ms"],
+        }
+
+    def attach_to_otel_span(self, span: Any, step_id: int | None = None) -> None:
+        """Attach exported Agent SNR attributes to an OpenTelemetry span.
+
+        Works dynamically with standard OpenTelemetry Span objects, Traceloop,
+        Langfuse, or any duck-typed span exposing `set_attributes(...)` or `set_attribute(...)`.
+
+        Args:
+            span: OpenTelemetry-compatible span object.
+            step_id: Optional step identifier. If None, attaches session summary attributes.
+        """
+        attrs = self.to_otel_attributes(step_id=step_id)
+        if hasattr(span, "set_attributes") and callable(span.set_attributes):
+            span.set_attributes(attrs)
+        elif hasattr(span, "set_attribute") and callable(span.set_attribute):
+            for k, v in attrs.items():
+                span.set_attribute(k, v)
+
     def export_json(self, path: str | Path) -> None:
         """Export telemetry steps and summary to a JSON file."""
         target = Path(path)
@@ -404,3 +475,16 @@ def profile_step(
         drift=drift,
         action_taken=action_taken,
     )
+
+
+def attach_to_otel_span(span: Any, profiler: TelemetryProfiler, step_id: int | None = None) -> None:
+    """Helper to attach profiler attributes to an OpenTelemetry span."""
+    profiler.attach_to_otel_span(span, step_id=step_id)
+
+
+__all__ = [
+    "StepTelemetry",
+    "TelemetryProfiler",
+    "attach_to_otel_span",
+    "profile_step",
+]

@@ -22,6 +22,7 @@ from agent_snr.core.frames import (
 from agent_snr.core.telemetry import (
     StepTelemetry,
     TelemetryProfiler,
+    attach_to_otel_span,
     profile_step,
 )
 from agent_snr.modules.budgeter import DynamicAttentionBudgeter
@@ -29,7 +30,7 @@ from agent_snr.modules.compactor import StateCompactor
 from agent_snr.modules.entropy import LoopEntropyDetector
 from agent_snr.modules.router import SkipLevelRouter, SkipRule
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "AgentSNRFirewall",
@@ -53,6 +54,7 @@ __all__ = [
     "TelemetryProfiler",
     "TraceLedger",
     "__version__",
+    "attach_to_otel_span",
     "cosine_similarity",
     "profile_step",
 ]

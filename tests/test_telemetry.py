@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from rich.console import Console
@@ -14,6 +15,7 @@ from agent_snr import (
     SignalFrame,
     StepTelemetry,
     TelemetryProfiler,
+    attach_to_otel_span,
     profile_step,
 )
 from agent_snr.cli import main, run_demo
@@ -221,6 +223,93 @@ class TestTelemetryProfiler:
             assert restored.steps[0].raw_tokens == 500
             assert restored.steps[0].tokens_saved == 400
             assert restored.steps[0].action_taken == FirewallAction.ALLOW
+
+    def test_to_otel_attributes_summary(self) -> None:
+        profiler = TelemetryProfiler(cost_per_million_input=3.0)
+        profiler.record_step(
+            step_id=1,
+            node_id="planner",
+            role=FrameRole.ASSISTANT,
+            raw_tokens=1000,
+            compacted_tokens=200,
+            snr_score=0.8,
+            entropy=0.9,
+            drift=0.1,
+            action_taken=FirewallAction.ALLOW,
+        )
+        profiler.record_step(
+            step_id=2,
+            node_id="executor",
+            role=FrameRole.TOOL_CALL,
+            raw_tokens=500,
+            compacted_tokens=500,
+            tokens_saved=0,
+            snr_score=0.2,
+            entropy=0.2,
+            drift=0.8,
+            action_taken=FirewallAction.CIRCUIT_BREAK,
+        )
+
+        attrs = profiler.to_otel_attributes()
+        assert attrs["agent_snr.total_steps"] == 2
+        assert attrs["agent_snr.total_raw_tokens"] == 1500
+        assert attrs["agent_snr.tokens_saved"] == 800
+        assert attrs["agent_snr.signal_efficiency_pct"] == round(800 / 1500 * 100.0, 2)
+        assert attrs["agent_snr.mean_snr"] == 0.5
+        assert attrs["agent_snr.loop_warnings"] == 0
+        assert attrs["agent_snr.circuit_breaks"] == 1
+
+    def test_to_otel_attributes_single_step(self) -> None:
+        profiler = TelemetryProfiler()
+        profiler.record_step(
+            step_id=42,
+            node_id="researcher",
+            role=FrameRole.TOOL_RESULT,
+            raw_tokens=2000,
+            compacted_tokens=400,
+            snr_score=0.75,
+            entropy=0.85,
+            drift=0.05,
+            action_taken=FirewallAction.INJECT_CORRECTION,
+            latency_ms=3.25,
+        )
+
+        step_attrs = profiler.to_otel_attributes(step_id=42)
+        assert step_attrs["agent_snr.step_id"] == 42
+        assert step_attrs["agent_snr.node_id"] == "researcher"
+        assert step_attrs["agent_snr.role"] == "tool_result"
+        assert step_attrs["agent_snr.tokens_saved"] == 1600
+        assert step_attrs["agent_snr.signal_efficiency_pct"] == 80.0
+        assert step_attrs["agent_snr.loop_warnings"] == 1
+        assert step_attrs["agent_snr.circuit_breaks"] == 0
+        assert step_attrs["agent_snr.latency_ms"] == 3.25
+
+        with pytest.raises(ValueError, match="Step with id 999 not found"):
+            profiler.to_otel_attributes(step_id=999)
+
+    def test_attach_to_otel_span(self) -> None:
+        profiler = TelemetryProfiler()
+        profiler.record_step(
+            step_id=1,
+            node_id="node1",
+            raw_tokens=500,
+            compacted_tokens=100,
+            snr_score=0.9,
+        )
+
+        # 1. Test span with set_attributes (batch method)
+        span_batch = MagicMock()
+        profiler.attach_to_otel_span(span_batch)
+        span_batch.set_attributes.assert_called_once()
+        batch_args = span_batch.set_attributes.call_args[0][0]
+        assert "agent_snr.tokens_saved" in batch_args
+        assert batch_args["agent_snr.tokens_saved"] == 400
+
+        # 2. Test span with set_attribute (key-value method)
+        span_kv = MagicMock(spec=["set_attribute"])
+        attach_to_otel_span(span_kv, profiler)
+        span_kv.set_attribute.assert_any_call("agent_snr.tokens_saved", 400)
+        span_kv.set_attribute.assert_any_call("agent_snr.total_steps", 1)
 
     def test_print_report_rendering(self) -> None:
         profiler = TelemetryProfiler()

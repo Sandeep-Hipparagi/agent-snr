@@ -407,9 +407,19 @@ class TestFastEmbedAdapter:
         adapter = FastEmbedAdapter()
         assert isinstance(adapter, BaseEmbedder)
 
-    def test_import_error_guidance_when_missing(self) -> None:
+    def test_import_error_guidance_when_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name: str, *args: Any, **kwargs: Any) -> Any:
+            if "fastembed" in name:
+                raise ImportError("No module named 'fastembed'")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
         adapter = FastEmbedAdapter()
-        # FastEmbed is not installed in the test environment, so calling embed() raises ImportError
         with pytest.raises(ImportError) as exc_info:
             adapter.embed("Test text requiring fastembed")
 

@@ -1,5 +1,8 @@
 """Agent SNR: An open-source, lightweight, framework-agnostic Agent Signal Firewall."""
 
+from agent_snr.adapters.crewai import CrewAISNRHook
+from agent_snr.adapters.langgraph import LangGraphSNRAdapter
+from agent_snr.adapters.openai import AsyncSNRWrappedOpenAI, SNRWrappedOpenAI
 from agent_snr.core.embedder import (
     BaseEmbedder,
     FastEmbedAdapter,
@@ -30,14 +33,18 @@ __version__ = "0.1.0"
 
 __all__ = [
     "AgentSNRFirewall",
+    "AsyncSNRWrappedOpenAI",
     "BaseEmbedder",
+    "CrewAISNRHook",
     "DynamicAttentionBudgeter",
     "FastEmbedAdapter",
     "FirewallAction",
     "FrameRole",
     "HashNgramEmbedder",
+    "LangGraphSNRAdapter",
     "LoopEntropyDetector",
     "SNRCircuitBreakError",
+    "SNRWrappedOpenAI",
     "SignalFrame",
     "SkipLevelRouter",
     "SkipRule",

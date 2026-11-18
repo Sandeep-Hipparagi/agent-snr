@@ -199,8 +199,8 @@ class FastEmbedAdapter:
 
 
 def cosine_similarity(
-    a: Sequence[float] | np.ndarray,
-    b: Sequence[float] | np.ndarray,
+    a: Sequence[float] | np.ndarray[Any, Any],
+    b: Sequence[float] | np.ndarray[Any, Any],
 ) -> float:
     """Compute cosine similarity between two vectors.
 

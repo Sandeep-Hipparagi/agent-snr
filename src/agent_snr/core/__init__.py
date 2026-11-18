@@ -1,4 +1,4 @@
-"""Core data structures and embedding algorithms for Agent SNR."""
+"""Core data structures, telemetry profiler, and embedding algorithms for Agent SNR."""
 
 from agent_snr.core.embedder import (
     BaseEmbedder,
@@ -12,6 +12,11 @@ from agent_snr.core.frames import (
     SignalFrame,
     TraceLedger,
 )
+from agent_snr.core.telemetry import (
+    StepTelemetry,
+    TelemetryProfiler,
+    profile_step,
+)
 
 __all__ = [
     "BaseEmbedder",
@@ -20,6 +25,9 @@ __all__ = [
     "FrameRole",
     "HashNgramEmbedder",
     "SignalFrame",
+    "StepTelemetry",
+    "TelemetryProfiler",
     "TraceLedger",
     "cosine_similarity",
+    "profile_step",
 ]

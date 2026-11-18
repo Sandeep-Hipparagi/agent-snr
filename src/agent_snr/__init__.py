@@ -12,6 +12,12 @@ from agent_snr.core.frames import (
     SignalFrame,
     TraceLedger,
 )
+from agent_snr.core.telemetry import (
+    StepTelemetry,
+    TelemetryProfiler,
+    profile_step,
+)
+from agent_snr.modules.entropy import LoopEntropyDetector
 
 __version__ = "0.1.0"
 
@@ -21,8 +27,12 @@ __all__ = [
     "FirewallAction",
     "FrameRole",
     "HashNgramEmbedder",
+    "LoopEntropyDetector",
     "SignalFrame",
+    "StepTelemetry",
+    "TelemetryProfiler",
     "TraceLedger",
     "__version__",
     "cosine_similarity",
+    "profile_step",
 ]

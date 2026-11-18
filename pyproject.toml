@@ -45,6 +45,9 @@ dev = [
     "mypy",
 ]
 
+[project.scripts]
+agent-snr = "agent_snr.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -78,3 +81,4 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "--basetemp=.pytest_temp"

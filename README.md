@@ -9,6 +9,14 @@
 
 > **An L4/L5 Signal Firewall for AI Agents**: *Treat agent memory and graph states like a high-efficiency organization.*
 
+## Product Walkthrough & Architecture Demo
+
+https://github.com/Sandeep-Hipparagi/agent-snr/releases/download/media-v1/brag.mp4
+
+[![agent-snr demo](assets/media/preview.webp)](https://github.com/Sandeep-Hipparagi/agent-snr/releases/tag/media-v1)
+
+---
+
 `agent-snr` is an ultra-fast, zero-lock-in Python firewall that sits between your agent loops and upstream LLM providers (OpenAI, Anthropic, LiteLLM, LangGraph, CrewAI). It continuously computes the **Signal-to-Noise Ratio (SNR)** of every message, prunes bloated metadata, detects non-convergent retry loops and silent goal drift, and dynamically bypasses unnecessary DAG critique hops.
 
 ---
